@@ -1,0 +1,57 @@
+#! /bin/bash 
+
+file='/tmp/__TCDwifi.conf';
+interface='wlp1s0'; #'wlan0', etc. run "ifconfig -a" or "ip link" to tell which one you want
+dhcpclient='dhcpcd'; #'dhclient'; dhcp client that is expected to take the name of the interface
+
+echo > '#test' > $file;
+if [[ "$?" != 0 ]] ; then
+	echo 'cannot write secret config file';
+	exit 1;
+fi
+
+echo 'network={
+        ssid="TCDwifi"
+        scan_ssid=1
+        key_mgmt=WPA-EAP
+        eap=PEAP
+        phase1="peaplabel=0"
+        phase2="auth=MSCHAPV2"' > $file;
+
+echo -n 'User: '
+read user;
+
+echo -n 'Pass: '
+read -s pass;
+
+echo '	identity="'$user'"' >> $file;
+echo '	password="'$pass'"' >> $file;
+echo '}' >> $file;
+
+echo 
+echo 'made a super secret file';
+
+sudo killall wpa_supplicant > /dev/null 2>&1;
+if [[ "$?" != 0 ]] ; then
+	echo 'could not kill the wpa_supplicant dopplegangers';
+	#exit 1;
+fi
+echo 'killed all wpa_supplicants';
+
+sudo wpa_supplicant -B -D wext -c $file -i $interface #> /dev/null 2>&1 &
+if [[ "$?" != 0 ]] ; then
+	echo 'wpa_supplicant could not be bothered to start';
+	exit 1;
+fi
+echo 'started wpa_supplicant';
+
+sleep 1;
+rm $file;
+echo 'deleted your super secret password containing file';
+
+sudo $dhcpclient $interface;
+if [[ "$?" == 0 ]] ; then
+	echo 'worked :)';
+else
+	echo 'did not work :(';
+fi
